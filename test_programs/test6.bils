@@ -1,0 +1,4 @@
+#bound 50
+ref l = 5 in !l
+||
+ref l = 4 in l := (!l) + 6 ; !l
