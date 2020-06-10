@@ -1,0 +1,4 @@
+#bound 2
+(fun f -> f 5)
+||
+(fun f -> f 6)
