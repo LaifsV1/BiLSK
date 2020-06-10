@@ -1,7 +1,6 @@
-#bound 500
+#bound 1000
 ref count = 0 in
 let rec f = (fun x -> count := !count + 1 ; if x < 5 then 99 else f (x - 1)) in
 f 6
 ||
-let rec f = 5 in
-f
+let x = _bot_ in 5
