@@ -25,7 +25,6 @@ module BILS-SYNTAX
                > "let" KVar "=" Exp "in" Exp      [binder, strict(2)]
                | "let rec" KVar "=" Exp "in" Exp  [binder, strict(2)]
                | "ref" KVar "=" Exp "in" Exp      [binder, strict(2)]
-               | "fun" KVar "->" Exp              [binder]
                | "(" Exp ")"                      [bracket]
   syntax Prog ::= Exp "||" Exp
                 | "#bound" Int Exp "||" Exp 
@@ -49,6 +48,7 @@ module BILS
 
   syntax Label ::= "ocall" Int Val | "oret" Val
                  | "pcall" KVar Val | "pret" Val
+                 | "!DIV!"
 
   syntax Mode ::= "_NORMAL_" | "_DIVERGE_" | "_ERROR_"
   //TODO: config organisation. What can go outside <bisim>?
@@ -87,7 +87,7 @@ module BILS
                   ...
                 </expr>)
   //==bound-not-specified==
-  rule <expr>...<k> E1 || E2 => E1 </k>...</expr>
+  rule <expr>...<id> _ => 1 </id><k> E1 || E2 => E1 </k>...</expr>
        (.Bag => <expr>...<id> 2 </id><k> E2 </k>...</expr>)
 
   //================================
@@ -126,7 +126,7 @@ module BILS
   //==application-nil==
   rule <expr>
        ...
-       <k> (fun X:KVar -> E:Exp) V:Val => _nil_ </k>
+       <k> (fun X:KVar -> E:Exp) V:Val => _nil_ ... </k>
        <step> I </step>
        ...
        </expr>
@@ -174,7 +174,6 @@ module BILS
          <id> 1 </id>
          <k> C:Const => !OPPONENT! </k>
          <trace> TR1 => TR1 ~> pret C </trace>
-         <step> S </step>
          ...
        </expr>
        <expr>
@@ -182,11 +181,8 @@ module BILS
          <id> 2 </id>
          <k> C:Const => !OPPONENT! </k>
          <trace> TR2 => TR2 ~> pret C </trace>
-         <step> S </step>
          ...
        </expr>
-       requires S >=Int 0
-       [transition]
   //==proponent-answer-lambda==
   rule <mode> _NORMAL_ </mode>
        <expr>
@@ -195,20 +191,16 @@ module BILS
          <k> fun X:KVar -> EX:Exp  => !OPPONENT! </k>
          <pub> ... .Map => (!I:Int |-> (fun X -> EX)) ... </pub>
          <trace> TR1 => TR1 ~> pret (fun X -> EX) </trace>
-         <step> S </step>
          ...
        </expr>
        <expr>
          ...
          <id> 2 </id>
          <k> fun Y:KVar -> EY:Exp  => !OPPONENT! </k>
-         <pub> ... .Map => (!I:Int |-> (fun Y -> EY)) ... </pub>
+         <pub> ... .Map => (!I |-> (fun Y -> EY)) ... </pub>
          <trace> TR2 => TR2 ~> pret (fun Y -> EY) </trace>
-         <step> S </step>
          ...
        </expr>
-       requires S >=Int 0
-       [transition]
        
   //==PROPONENT-QUESTIONS==
   //==proponent-question-const==
@@ -216,68 +208,57 @@ module BILS
        <expr>
          ...
          <id> 1 </id>
-         <k> (!abs! X) C:Const ~> E1 => !OPPONENT! </k>
-         <eval> ES1 => E1 ~> ES1 </eval>
-         <trace> TR1 => TR1 ~> pcall X C </trace>
-         <step> S </step>
+         <k> (!abs! F) C:Const ~> E1 => !OPPONENT! </k>
+         <eval> ES1 => E1 ~> (!abs! F) ~> ES1 </eval>
+         <trace> TR1 => TR1 ~> pcall F C </trace>
          ...
        </expr>
        <expr>
          ...
          <id> 2 </id>
-         <k> (!abs! X) C:Const ~> E2 => !OPPONENT! </k>
-         <eval> ES2 => E2 ~> ES2 </eval>
-         <trace> TR2 => TR2 ~> pcall X C </trace>
-         <step> S </step>
+         <k> (!abs! F) C:Const ~> E2 => !OPPONENT! </k>
+         <eval> ES2 => E2 ~> (!abs! F) ~> ES2 </eval>
+         <trace> TR2 => TR2 ~> pcall F C </trace>
          ...
        </expr>
-       requires S >=Int 0
-       [transition]
   //==proponent-question-lambda==
   rule <mode> _NORMAL_ </mode>
        <expr>
          ...
          <id> 1 </id>
          <k>
-           (!abs! X) (fun X:KVar -> EX:Exp) ~> E1
+           (!abs! F) (fun X:KVar -> EX:Exp) ~> E1
            =>
            !OPPONENT!
          </k>
          <pub> ... .Map => (!I:Int |-> (fun X -> EX)) ... </pub>
-         <eval> ES1 => E1 ~> ES1 </eval>
-         <trace> TR1 => TR1 ~> pcall X (fun X -> EX) </trace>
-         <step> S </step>
+         <eval> ES1 => E1 ~> (!abs! F) ~> ES1 </eval>
+         <trace> TR1 => TR1 ~> pcall F (fun X -> EX) </trace>
          ...
        </expr>
        <expr>
          ...
          <id> 2 </id>
          <k>
-           (!abs! X) (fun Y:KVar -> EY:Exp) ~> E2
+           (!abs! F) (fun Y:KVar -> EY:Exp) ~> E2
            =>
            !OPPONENT!
          </k>
          <pub> ... .Map => (!I:Int |-> (fun Y -> EY)) ... </pub>
-         <eval> ES2 => E2 ~> ES2 </eval>
-         <trace> TR2 => TR2 ~> pcall X (fun Y -> EY) </trace>
-         <step> S </step>
+         <eval> ES2 => E2 ~> (!abs! F) ~> ES2 </eval>
+         <trace> TR2 => TR2 ~> pcall F (fun Y -> EY) </trace>
          ...
        </expr>
-       requires S >=Int 0
-       [transition]
        
   //==OPPONENT-ANSWERS==
   // TODO: maybe use only Boolean constants.
-  // TODO: we may need typing for SMT calls for symbolic integers.
-  // TODO: how to deal with symbolic values? a variable?
-  // TODO: should step counter be inside the process?
   //==opponent-answer-constant==
   rule <mode> _NORMAL_ </mode>
        <expr>
          ...
          <id> 1 </id>
          <k> !OPPONENT! => !abs! !X:KVar ~> E1 </k>
-         <eval> E1:KItem ~> ES1 => ES1 </eval>
+         <eval> E1:KItem ~> (!abs! N) ~> ES1 => ES1 </eval>
          <trace> TR1 => TR1 ~> oret (!abs! !X) </trace>
          <step> S </step>
          ...
@@ -286,12 +267,12 @@ module BILS
          ...
          <id> 2 </id>
          <k> !OPPONENT! => !abs! !X ~> E2 </k>
-         <eval> E2:KItem ~> ES2 => ES2 </eval>
+         <eval> E2:KItem ~> (!abs! N) ~> ES2 => ES2 </eval>
          <trace> TR2 => TR2 ~> oret (!abs! !X) </trace>
          <step> S </step>
          ...
        </expr>
-       requires S >=Int 0
+       requires S >Int 0
        [transition]
   //==opponent-answer-lambda==
   rule <mode> _NORMAL_ </mode>
@@ -303,7 +284,7 @@ module BILS
            =>
            (fun !X:KVar -> (!abs! !Y:KVar) !X) ~> E1
          </k>
-         <eval> E1:KItem ~> ES1 => ES1 </eval>
+         <eval> E1:KItem ~> (!abs! N) ~> ES1 => ES1 </eval>
          <trace> TR1 => TR1 ~> oret (fun !X -> (!abs! !Y) !X) </trace>
          <step> S </step>
          ...
@@ -316,12 +297,12 @@ module BILS
            =>
            (fun !X -> (!abs! !Y) !X) ~> E2
          </k>
-         <eval> E2:KItem ~> ES2 => ES2 </eval>
+         <eval> E2:KItem ~> (!abs! N) ~> ES2 => ES2 </eval>
          <trace> TR2 => TR2 ~> oret (fun !X -> (!abs! !Y) !X) </trace>
          <step> S </step>
          ...
        </expr>
-       requires S >=Int 0
+       requires S >Int 0
        [transition]
   //==OPPONENT-QUESTIONS==
   //==opponent-question-const==
@@ -344,9 +325,9 @@ module BILS
          <step> S => S -Int 1 </step>
          ...
        </expr>
-       requires S >=Int 0
+       requires S >Int 0
        [transition]
-  //==proponent-question-lambda==
+  //==opponent-question-lambda==
   rule <mode> _NORMAL_ </mode>
        <expr>
          ...
@@ -388,7 +369,6 @@ module BILS
          ...
        </expr>
        requires S <=Int 0
-       [transition]
 
   //====================================
   // RULES TO SWITCH TO DIVERGENCE MODE:
@@ -398,22 +378,33 @@ module BILS
        <expr>
          ...
          <k> C1:Const => !OPPONENT! </k>
-         <trace> TR1 => TR1 ~> pret C1 </trace>
-         <step> S </step>
+         <trace> TR1 => TR1 ~> pret C1 ~> !DIV! </trace>
          ...
        </expr>
        <expr>
          ...
          <k> C2:Const => !OPPONENT! </k>
-         <trace> TR2 => TR2 ~> pret C2 </trace>
-         <step> S </step>
+         <trace> TR2 => TR2 ~> pret C2 ~> !DIV! </trace>
          ...
        </expr>
-       requires S >=Int 0 andBool C1 =/=K C2
-       [transition]
-  //==proponent-answer-lambda-neq==
-  //TODO: check that this is not necessary.
-  
+       requires C1 =/=K C2
+  //==proponent-answer-lambda-neq==: not needed.
+  //==proponent-answer-const-lambda==
+  rule <mode> _NORMAL_ => _DIVERGE_ </mode>
+       <expr>
+         ...
+         <k> C1:Const => !OPPONENT! </k>
+         <trace> TR1 => TR1 ~> pret C1 ~> !DIV! </trace>
+         ...
+       </expr>
+       <expr>
+         ...
+         <k> fun X:KVar -> EX:Exp  => !OPPONENT! </k>
+         <pub> ... .Map => (!I:Int |-> (fun X -> EX)) ... </pub>
+         <trace> TR1 => TR1 ~> pret (fun X -> EX) ~> !DIV! </trace>
+         ...
+       </expr>
+
   //==PROPONENT-QUESTIONS==
   //==proponent-question-const-neq==
   rule <mode> _NORMAL_ => _DIVERGE_ </mode>
@@ -421,60 +412,398 @@ module BILS
          ...
          <id> 1 </id>
          <k> (!abs! X) C1:Const ~> E1 => !OPPONENT! </k>
-         <eval> ES1 => E1 ~> ES1 </eval>
-         <trace> TR1 => TR1 ~> pcall X C1 </trace>
-         <step> S </step>
+         <eval> ES1 => E1 ~> (!abs! X) ~> ES1 </eval>
+         <trace> TR1 => TR1 ~> pcall X C1 ~> !DIV! </trace>
          ...
        </expr>
        <expr>
          ...
          <id> 2 </id>
          <k> (!abs! Y) C2:Const ~> E2 => !OPPONENT! </k>
-         <eval> ES2 => E2 ~> ES2 </eval>
-         <trace> TR2 => TR2 ~> pcall Y C2 </trace>
-         <step> S </step>
+         <eval> ES2 => E2 ~> (!abs! Y) ~> ES2 </eval>
+         <trace> TR2 => TR2 ~> pcall Y C2 ~> !DIV! </trace>
          ...
        </expr>
-       requires S >=Int 0 andBool
-                ((X =/=K Y) orBool (C1 =/=K C2))
-       [transition]
+       requires (X =/=K Y) orBool (C1 =/=K C2)
   //==proponent-question-lambda==
   rule <mode> _NORMAL_ => _DIVERGE_ </mode>
        <expr>
          ...
          <id> 1 </id>
          <k>
-           (!abs! X1) (fun X:KVar -> EX:Exp) ~> E1
+           (!abs! F1) (fun X:KVar -> EX:Exp) ~> E1
            =>
            !OPPONENT!
          </k>
          <pub> ... .Map => (!I:Int |-> (fun X -> EX)) ... </pub>
-         <eval> ES1 => E1 ~> ES1 </eval>
-         <trace> TR1 => TR1 ~> pcall X (fun X -> EX) </trace>
-         <step> S </step>
+         <eval> ES1 => E1 ~> (!abs! F1) ~> ES1 </eval>
+         <trace> TR1 => TR1 ~> pcall F1 (fun X -> EX) ~> !DIV! </trace>
          ...
        </expr>
        <expr>
          ...
          <id> 2 </id>
          <k>
-           (!abs! X2) (fun Y:KVar -> EY:Exp) ~> E2
+           (!abs! F2) (fun Y:KVar -> EY:Exp) ~> E2
            =>
            !OPPONENT!
          </k>
          <pub> ... .Map => (!I:Int |-> (fun Y -> EY)) ... </pub>
-         <eval> ES2 => E2 ~> ES2 </eval>
-         <trace> TR2 => TR2 ~> pcall X (fun Y -> EY) </trace>
-         <step> S </step>
+         <eval> ES2 => E2 ~> (!abs! F2) ~> ES2 </eval>
+         <trace> TR2 => TR2 ~> pcall F2 (fun Y -> EY) ~> !DIV! </trace>
          ...
        </expr>
-       requires S >=Int 0 andBool (X1 =/=K X2)
-       [transition]  
+       requires F1 =/=K F2
+  //==proponent-question-const-lambda==
+  rule <mode> _NORMAL_ => _DIVERGE_ </mode>
+       <expr>
+         ...
+         <k> (!abs! F1) C1:Const ~> E1 => !OPPONENT! </k>
+         <eval> ES1 => E1 ~> (!abs! F1) ~> ES1 </eval>
+         <trace> TR1 => TR1 ~> pcall F1 C1 ~> !DIV! </trace>
+         ...
+       </expr>
+       <expr>
+         ...
+         <k>
+           (!abs! F2) (fun Y:KVar -> EY:Exp) ~> E2
+           =>
+           !OPPONENT!
+         </k>
+         <pub> ... .Map => (!I:Int |-> (fun Y -> EY)) ... </pub>
+         <eval> ES2 => E2 ~> (!abs! F2) ~> ES2 </eval>
+         <trace> TR2 => TR2 ~> pcall F2 (fun Y -> EY) ~> !DIV! </trace>
+         ...
+       </expr>
+
+  //==PROPONENT-ANSWERS-QUESTIONS==
+  // combinatorial combination of CALL and RET rules.
+  // i.e. 2 answer and 2 question rules = 4 combined rules.
+
+  //==proponent-answer-constant-question-constant==
+  rule <mode> _NORMAL_ => _DIVERGE_ </mode>
+       <expr>
+         ...
+         <k> C:Const => !OPPONENT! </k>
+         <trace> TR1 => TR1 ~> pret C ~> !DIV! </trace>
+         ...
+       </expr>
+       <expr>
+         ...
+         <k> (!abs! F) C:Const ~> E2 => !OPPONENT! </k>
+         <eval> ES2 => E2 ~> (!abs! F) ~> ES2 </eval>
+         <trace> TR2 => TR2 ~> pcall F C ~> !DIV! </trace>
+         ...
+       </expr>
+  //==proponent-answer-lambda-question-constant==
+  rule <mode> _NORMAL_ => _DIVERGE_ </mode>
+       <expr>
+         ...
+         <k> fun X:KVar -> EX:Exp  => !OPPONENT! </k>
+         <pub> ... .Map => (!I:Int |-> (fun X -> EX)) ... </pub>
+         <trace> TR1 => TR1 ~> pret (fun X -> EX) ~> !DIV! </trace>
+         ...
+       </expr>
+       <expr>
+         ...
+         <k> (!abs! F) C:Const ~> E2 => !OPPONENT! </k>
+         <eval> ES2 => E2 ~> (!abs! F) ~> ES2 </eval>
+         <trace> TR2 => TR2 ~> pcall F C ~> !DIV! </trace>
+         ...
+       </expr>
+  //==proponent-answer-constant-question-lambda==
+  rule <mode> _NORMAL_ => _DIVERGE_ </mode>
+       <expr>
+         ...
+         <k> C:Const => !OPPONENT! </k>
+         <trace> TR1 => TR1 ~> pret C ~> !DIV! </trace>
+         ...
+       </expr>
+       <expr>
+         ...
+         <k>
+           (!abs! F) (fun Y:KVar -> EY:Exp) ~> E2
+           =>
+           !OPPONENT!
+         </k>
+         <pub> ... .Map => (!I:Int |-> (fun Y -> EY)) ... </pub>
+         <eval> ES2 => E2 ~> (!abs! F) ~> ES2 </eval>
+         <trace> TR2 => TR2 ~> pcall F (fun Y -> EY) ~> !DIV! </trace>
+         ...
+       </expr>
+  //==proponent-answer-lambda==
+  rule <mode> _NORMAL_ => _DIVERGE_ </mode>
+       <expr>
+         ...
+         <k> fun X:KVar -> EX:Exp  => !OPPONENT! </k>
+         <pub> ... .Map => (!I:Int |-> (fun X -> EX)) ... </pub>
+         <trace> TR1 => TR1 ~> pret (fun X -> EX) ~> !DIV! </trace>
+         ...
+       </expr>
+       <expr>
+         ...
+         <k>
+           (!abs! F) (fun Y:KVar -> EY:Exp) ~> E2
+           =>
+           !OPPONENT!
+         </k>
+         <pub> ... .Map => (!I:Int |-> (fun Y -> EY)) ... </pub>
+         <eval> ES2 => E2 ~> (!abs! F) ~> ES2 </eval>
+         <trace> TR2 => TR2 ~> pcall F (fun Y -> EY) ~> !DIV! </trace>
+         ...
+       </expr>
 
   // CANT DIVERGE ON OPPONENT SO NO OPPONENT MOVES...
 
+  //=======================
+  // DIVERGENCE MODE RULES:
+  // we execute the first term first.
+  // we try to reach nil or an error.
+  //---------------------------------
+  // ID 1
+  //==DIVERGE-PROPONENT-ANSWERS==
+  //==proponent-answer-constant==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>
+         ...
+         <id> 1 </id>
+         <k> C:Const => !OPPONENT! </k>
+         <trace> TR1 => TR1 ~> pret C </trace>
+         ...
+       </expr>
+  //==proponent-answer-lambda==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>
+         ...
+         <id> 1 </id>
+         <k> fun X:KVar -> EX:Exp  => !OPPONENT! </k>
+         <pub> ... .Map => (!I:Int |-> (fun X -> EX)) ... </pub>
+         <trace> TR1 => TR1 ~> pret (fun X -> EX) </trace>
+         ...
+       </expr>
+  //==DIVERGE-PROPONENT-QUESTIONS==
+  //==proponent-question-const==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>
+         ...
+         <id> 1 </id>
+         <k> (!abs! F) C:Const ~> E1 => !OPPONENT! </k>
+         <eval> ES1 => E1 ~> (!abs! F) ~> ES1 </eval>
+         <trace> TR1 => TR1 ~> pcall F C </trace>
+         ...
+       </expr>
+  //==proponent-question-lambda==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>
+         ...
+         <id> 1 </id>
+         <k>
+           (!abs! F) (fun X:KVar -> EX:Exp) ~> E1
+           =>
+           !OPPONENT!
+         </k>
+         <pub> ... .Map => (!I:Int |-> (fun X -> EX)) ... </pub>
+         <eval> ES1 => E1 ~> (!abs! F) ~> ES1 </eval>
+         <trace> TR1 => TR1 ~> pcall F (fun X -> EX) </trace>
+         ...
+       </expr>
+  //==DIVERGE-OPPONENT-ANSWERS==
+  //==opponent-answer-constant==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>
+         ...
+         <id> 1 </id>
+         <k> !OPPONENT! => !abs! !X:KVar ~> E1 </k>
+         <eval> E1:KItem ~> (!abs! F) ~> ES1 => ES1 </eval>
+         <trace> TR1 => TR1 ~> oret (!abs! !X) </trace>
+         <step> S </step>
+         ...
+       </expr>
+       requires (S >Int 0)
+       [transition]
+  //==opponent-answer-lambda==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>
+         ...
+         <id> 1 </id>
+         <k>
+           !OPPONENT!
+           =>
+           (fun !X:KVar -> (!abs! !Y:KVar) !X) ~> E1
+         </k>
+         <eval> E1:KItem ~> (!abs! F) ~> ES1 => ES1 </eval>
+         <trace> TR1 => TR1 ~> oret (fun !X -> (!abs! !Y) !X) </trace>
+         <step> S </step>
+         ...
+       </expr>
+       requires (S >Int 0)
+       [transition]
+  //==DIVERGE-OPPONENT-QUESTIONS==
+  //==opponent-question-const==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>
+         ...
+         <id> 1 </id>
+         <k> !OPPONENT! => EX1[!abs! !C:KVar/X1] </k>
+         <pub> ... I |-> (fun X1 -> EX1) ... </pub>
+         <trace> TR1 => TR1 ~> ocall I (!abs! !C) </trace>
+         <step> S => S -Int 1 </step>
+         ...
+       </expr>
+       requires (S >Int 0)
+       [transition]
+  //==proponent-question-lambda==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>
+         ...
+         <id> 1 </id>
+         <k>
+           !OPPONENT!
+           =>
+           EX1[(fun !Y:KVar -> (!abs! !F:KVar) !Y)/X1]
+         </k>
+         <pub> ... I |-> (fun X1 -> EX1) ... </pub>
+         <trace>
+           TR1 => TR1 ~> ocall I (fun !Y -> (!abs! !F) !Y) </trace>
+         <step> S => S -Int 1 </step>
+         ...
+       </expr>
+       requires (S >Int 0)
+       [transition]
 
+  //-------------
+  // ID 2
+  //=====
+  //==DIVERGE-PROPONENT-ANSWERS==
+  //==proponent-answer-constant==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>...<id> 1 </id><k> _nil_ </k>...</expr>
+       <expr>
+         ...
+         <id> 2 </id>
+         <k> C:Const => !OPPONENT! </k>
+         <trace> TR1 => TR1 ~> pret C </trace>
+         ...
+       </expr>
+  //==proponent-answer-lambda==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>...<id> 1 </id><k> _nil_ </k>...</expr>
+       <expr>
+         ...
+         <id> 2 </id>
+         <k> fun X:KVar -> EX:Exp  => !OPPONENT! </k>
+         <pub> ... .Map => (!I:Int |-> (fun X -> EX)) ... </pub>
+         <trace> TR1 => TR1 ~> pret (fun X -> EX) </trace>
+         ...
+       </expr>
+  //==DIVERGE-PROPONENT-QUESTIONS==
+  //==proponent-question-const==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>...<id> 1 </id><k> _nil_ </k>...</expr>
+       <expr>
+         ...
+         <id> 2 </id>
+         <k> (!abs! F) C:Const ~> E1 => !OPPONENT! </k>
+         <eval> ES1 => E1 ~> (!abs! F) ~> ES1 </eval>
+         <trace> TR1 => TR1 ~> pcall F C </trace>
+         ...
+       </expr>
+  //==proponent-question-lambda==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>...<id> 1 </id><k> _nil_ </k>...</expr>
+       <expr>
+         ...
+         <id> 2 </id>
+         <k>
+           (!abs! F) (fun X:KVar -> EX:Exp) ~> E1
+           =>
+           !OPPONENT!
+         </k>
+         <pub> ... .Map => (!I:Int |-> (fun X -> EX)) ... </pub>
+         <eval> ES1 => E1 ~> (!abs! F) ~> ES1 </eval>
+         <trace> TR1 => TR1 ~> pcall F (fun X -> EX) </trace>
+         ...
+       </expr>
+  //==DIVERGE-OPPONENT-ANSWERS==
+  //==opponent-answer-constant==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>...<id> 1 </id><k> _nil_ </k>...</expr>
+       <expr>
+         ...
+         <id> 2 </id>
+         <k> !OPPONENT! => !abs! !X:KVar ~> E1 </k>
+         <eval> E1:KItem ~> (!abs! F) ~> ES1 => ES1 </eval>
+         <trace> TR1 => TR1 ~> oret (!abs! !X) </trace>
+         <step> S </step>
+         ...
+       </expr>
+       requires (S >Int 0)
+       [transition]
+  //==opponent-answer-lambda==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>...<id> 1 </id><k> _nil_ </k>...</expr>
+       <expr>
+         ...
+         <id> 2 </id>
+         <k>
+           !OPPONENT!
+           =>
+           (fun !X:KVar -> (!abs! !Y:KVar) !X) ~> E1
+         </k>
+         <eval> E1:KItem ~> (!abs! F) ~> ES1 => ES1 </eval>
+         <trace> TR1 => TR1 ~> oret (fun !X -> (!abs! !Y) !X) </trace>
+         <step> S </step>
+         ...
+       </expr>
+       requires (S >Int 0)
+       [transition]
+  //==DIVERGE-OPPONENT-QUESTIONS==
+  //==opponent-question-const==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>...<id> 1 </id><k> _nil_ </k>...</expr>
+       <expr>
+         ...
+         <id> 2 </id>
+         <k> !OPPONENT! => EX1[!abs! !C:KVar/X1] </k>
+         <pub> ... I |-> (fun X1 -> EX1) ... </pub>
+         <trace> TR1 => TR1 ~> ocall I (!abs! !C) </trace>
+         <step> S => S -Int 1 </step>
+         ...
+       </expr>
+       requires (S >Int 0)
+       [transition]
+  //==proponent-question-lambda==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>...<id> 1 </id><k> _nil_ </k>...</expr>
+       <expr>
+         ...
+         <id> 2 </id>
+         <k>
+           !OPPONENT!
+           =>
+           EX1[(fun !Y:KVar -> (!abs! !F:KVar) !Y)/X1]
+         </k>
+         <pub> ... I |-> (fun X1 -> EX1) ... </pub>
+         <trace>
+           TR1 => TR1 ~> ocall I (fun !Y -> (!abs! !F) !Y) </trace>
+         <step> S => S -Int 1 </step>
+         ...
+       </expr>
+       requires (S >Int 0)
+       [transition]
 
+  //============
+  // ERROR MODE:
+  // checks if one side can reach empty stack at oppponent
+  // while the other side is at nil
+  rule <mode> _DIVERGE_ => _ERROR_ </mode>
+       <expr>
+         ...
+         <k> !OPPONENT! </k>
+         <eval> .K </eval>
+         ...
+       </expr>
+       [transition]
 
   //TODO: implement termination checking mode
   //TODO: implement checking innequivalence at proponent move
