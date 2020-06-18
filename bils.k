@@ -4,6 +4,10 @@ module BILS-SYNTAX
   imports DOMAINS-SYNTAX
   imports SUBSTITUTION
 
+  // TODO:
+  // - unexplainable bug with associativity of sequencing
+  //   i.e. fun f -> f 6 ; ( ref l2 = 2 in f ! l2 )
+  //   why does ; need brackets on the second term?
   syntax Exp ::= KVar | Val | EVal
                | "!" KVar
                > Exp Exp                          [seqstrict(1,2), left]
@@ -26,8 +30,8 @@ module BILS-SYNTAX
                | "let rec" KVar "=" Exp "in" Exp  [binder, strict(2)]
                | "ref" KVar "=" Exp "in" Exp      [binder, strict(2)]
                | "(" Exp ")"                      [bracket]
-  syntax Prog ::= Exp "||" Exp
-                | "#bound" Int Exp "||" Exp 
+  syntax Prog ::= Exp "|||" Exp
+                | "#bound" Int Exp "|||" Exp 
   syntax Val ::= Const | "fun" KVar "->" Exp [binder,fun]
   syntax Const ::= Int | Bool | "()"
   syntax EVal ::= Bot | Nil
@@ -51,8 +55,7 @@ module BILS
                  | "!DIV!"
 
   syntax Mode ::= "_NORMAL_" | "_DIVERGE_" | "_ERROR_"
-  //TODO: config organisation. What can go outside <bisim>?
-  //TODO: could I have the step counter cover both terms?
+
   configuration 
       <T>
         <bisim>
@@ -66,6 +69,13 @@ module BILS
             <trace> .K </trace>
             <step> 10 </step>
           </expr>
+          <explored>
+            <conf multiplicity="*">
+              <store> .Map </store>
+              <stack> .K </stack>
+              <gamma> .Map </gamma>
+            </conf>
+          </explored>
         </bisim>
       </T>
 
@@ -75,7 +85,7 @@ module BILS
   rule <expr>
          ...
          <id> _ => 1 </id>
-         <k> #bound I:Int E1 || E2 => E1 </k>
+         <k> #bound I:Int E1 ||| E2 => E1 </k>
          <step> _ => I </step>
          ...
        </expr>
@@ -87,15 +97,13 @@ module BILS
                   ...
                 </expr>)
   //==bound-not-specified==
-  rule <expr>...<id> _ => 1 </id><k> E1 || E2 => E1 </k>...</expr>
+  rule <expr>...<id> _ => 1 </id><k> E1 ||| E2 => E1 </k>...</expr>
        (.Bag => <expr>...<id> 2 </id><k> E2 </k>...</expr>)
 
   //================================
   // CONCRETE OPERATIONAL SEMANTICS:
   //TODO: check bounds!!!
   //TODO: add type annotation to lambda
-  //TODO: add type annotation to assignment
-  //TODO: add type annotation to 
   //==divergence==
   rule EV:EVal ~> K:KItem => EV
   //==arithmetic==
@@ -174,6 +182,9 @@ module BILS
          <id> 1 </id>
          <k> C:Const => !OPPONENT! </k>
          <trace> TR1 => TR1 ~> pret C </trace>
+         <state> ST1 </state>
+         <eval> ES1 </eval>
+         <pub> P1 </pub>
          ...
        </expr>
        <expr>
@@ -181,8 +192,27 @@ module BILS
          <id> 2 </id>
          <k> C:Const => !OPPONENT! </k>
          <trace> TR2 => TR2 ~> pret C </trace>
+         <state> ST2 </state>
+         <eval> ES2 </eval>
+         <pub> P2 </pub>
          ...
        </expr>
+       <explored>
+         ...
+         (.Bag =>
+           <conf>
+             <store> ST1 </store>
+             <stack> ES1</stack>
+             <gamma> P1 </gamma>
+           </conf>)
+         (.Bag =>
+           <conf>
+             <store> ST2 </store>
+             <stack> ES2</stack>
+             <gamma> P2 </gamma>
+           </conf>)
+         ...
+       </explored>
   //==proponent-answer-lambda==
   rule <mode> _NORMAL_ </mode>
        <expr>
@@ -252,23 +282,45 @@ module BILS
        
   //==OPPONENT-ANSWERS==
   // TODO: maybe use only Boolean constants.
-  //==opponent-answer-constant==
+  //==opponent-answer-true==
   rule <mode> _NORMAL_ </mode>
        <expr>
          ...
          <id> 1 </id>
-         <k> !OPPONENT! => !abs! !X:KVar ~> E1 </k>
+         <k> !OPPONENT! => true ~> E1 </k>
          <eval> E1:KItem ~> (!abs! N) ~> ES1 => ES1 </eval>
-         <trace> TR1 => TR1 ~> oret (!abs! !X) </trace>
+         <trace> TR1 => TR1 ~> oret true </trace>
          <step> S </step>
          ...
        </expr>
        <expr>
          ...
          <id> 2 </id>
-         <k> !OPPONENT! => !abs! !X ~> E2 </k>
+         <k> !OPPONENT! => true ~> E2 </k>
          <eval> E2:KItem ~> (!abs! N) ~> ES2 => ES2 </eval>
-         <trace> TR2 => TR2 ~> oret (!abs! !X) </trace>
+         <trace> TR2 => TR2 ~> oret true </trace>
+         <step> S </step>
+         ...
+       </expr>
+       requires S >Int 0
+       [transition]
+  //==opponent-answer-false==
+  rule <mode> _NORMAL_ </mode>
+       <expr>
+         ...
+         <id> 1 </id>
+         <k> !OPPONENT! => false ~> E1 </k>
+         <eval> E1:KItem ~> (!abs! N) ~> ES1 => ES1 </eval>
+         <trace> TR1 => TR1 ~> oret false </trace>
+         <step> S </step>
+         ...
+       </expr>
+       <expr>
+         ...
+         <id> 2 </id>
+         <k> !OPPONENT! => false ~> E2 </k>
+         <eval> E2:KItem ~> (!abs! N) ~> ES2 => ES2 </eval>
+         <trace> TR2 => TR2 ~> oret false </trace>
          <step> S </step>
          ...
        </expr>
@@ -305,23 +357,45 @@ module BILS
        requires S >Int 0
        [transition]
   //==OPPONENT-QUESTIONS==
-  //==opponent-question-const==
+  //==opponent-question-true==
   rule <mode> _NORMAL_ </mode>
        <expr>
          ...
          <id> 1 </id>
-         <k> !OPPONENT! => EX1[!abs! !C:KVar/X1] </k>
+         <k> !OPPONENT! => EX1[true/X1] </k>
          <pub> ... I |-> (fun X1 -> EX1) ... </pub>
-         <trace> TR1 => TR1 ~> ocall I (!abs! !C) </trace>
+         <trace> TR1 => TR1 ~> ocall I true </trace>
          <step> S => S -Int 1 </step>
          ...
        </expr>
        <expr>
          ...
          <id> 2 </id>
-         <k> !OPPONENT! => EX2[!abs! !C/X2] </k>
+         <k> !OPPONENT! => EX2[true/X2] </k>
          <pub> ... I |-> (fun X2 -> EX2) ... </pub>
-         <trace> TR2 => TR2 ~> ocall I (!abs! !C) </trace>
+         <trace> TR2 => TR2 ~> ocall I true </trace>
+         <step> S => S -Int 1 </step>
+         ...
+       </expr>
+       requires S >Int 0
+       [transition]
+  //==opponent-question-false==
+  rule <mode> _NORMAL_ </mode>
+       <expr>
+         ...
+         <id> 1 </id>
+         <k> !OPPONENT! => EX1[false/X1] </k>
+         <pub> ... I |-> (fun X1 -> EX1) ... </pub>
+         <trace> TR1 => TR1 ~> ocall I false </trace>
+         <step> S => S -Int 1 </step>
+         ...
+       </expr>
+       <expr>
+         ...
+         <id> 2 </id>
+         <k> !OPPONENT! => EX2[false/X2] </k>
+         <pub> ... I |-> (fun X2 -> EX2) ... </pub>
+         <trace> TR2 => TR2 ~> ocall I false </trace>
          <step> S => S -Int 1 </step>
          ...
        </expr>
@@ -608,14 +682,27 @@ module BILS
          ...
        </expr>
   //==DIVERGE-OPPONENT-ANSWERS==
-  //==opponent-answer-constant==
+  //==opponent-answer-true==
   rule <mode> _DIVERGE_ </mode>
        <expr>
          ...
          <id> 1 </id>
-         <k> !OPPONENT! => !abs! !X:KVar ~> E1 </k>
+         <k> !OPPONENT! => true ~> E1 </k>
          <eval> E1:KItem ~> (!abs! F) ~> ES1 => ES1 </eval>
-         <trace> TR1 => TR1 ~> oret (!abs! !X) </trace>
+         <trace> TR1 => TR1 ~> oret true </trace>
+         <step> S </step>
+         ...
+       </expr>
+       requires (S >Int 0)
+       [transition]
+  //==opponent-answer-false==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>
+         ...
+         <id> 1 </id>
+         <k> !OPPONENT! => false ~> E1 </k>
+         <eval> E1:KItem ~> (!abs! F) ~> ES1 => ES1 </eval>
+         <trace> TR1 => TR1 ~> oret false </trace>
          <step> S </step>
          ...
        </expr>
@@ -639,14 +726,27 @@ module BILS
        requires (S >Int 0)
        [transition]
   //==DIVERGE-OPPONENT-QUESTIONS==
-  //==opponent-question-const==
+  //==opponent-question-true==
   rule <mode> _DIVERGE_ </mode>
        <expr>
          ...
          <id> 1 </id>
-         <k> !OPPONENT! => EX1[!abs! !C:KVar/X1] </k>
+         <k> !OPPONENT! => EX1[true/X1] </k>
          <pub> ... I |-> (fun X1 -> EX1) ... </pub>
-         <trace> TR1 => TR1 ~> ocall I (!abs! !C) </trace>
+         <trace> TR1 => TR1 ~> ocall I true </trace>
+         <step> S => S -Int 1 </step>
+         ...
+       </expr>
+       requires (S >Int 0)
+       [transition]
+  //==opponent-question-false==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>
+         ...
+         <id> 1 </id>
+         <k> !OPPONENT! => EX1[false/X1] </k>
+         <pub> ... I |-> (fun X1 -> EX1) ... </pub>
+         <trace> TR1 => TR1 ~> ocall I false </trace>
          <step> S => S -Int 1 </step>
          ...
        </expr>
@@ -725,15 +825,29 @@ module BILS
          ...
        </expr>
   //==DIVERGE-OPPONENT-ANSWERS==
-  //==opponent-answer-constant==
+  //==opponent-answer-true==
   rule <mode> _DIVERGE_ </mode>
        <expr>...<id> 1 </id><k> _nil_ </k>...</expr>
        <expr>
          ...
          <id> 2 </id>
-         <k> !OPPONENT! => !abs! !X:KVar ~> E1 </k>
+         <k> !OPPONENT! => true ~> E1 </k>
          <eval> E1:KItem ~> (!abs! F) ~> ES1 => ES1 </eval>
-         <trace> TR1 => TR1 ~> oret (!abs! !X) </trace>
+         <trace> TR1 => TR1 ~> oret true </trace>
+         <step> S </step>
+         ...
+       </expr>
+       requires (S >Int 0)
+       [transition]
+  //==opponent-answer-false==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>...<id> 1 </id><k> _nil_ </k>...</expr>
+       <expr>
+         ...
+         <id> 2 </id>
+         <k> !OPPONENT! => false ~> E1 </k>
+         <eval> E1:KItem ~> (!abs! F) ~> ES1 => ES1 </eval>
+         <trace> TR1 => TR1 ~> oret false </trace>
          <step> S </step>
          ...
        </expr>
@@ -758,15 +872,29 @@ module BILS
        requires (S >Int 0)
        [transition]
   //==DIVERGE-OPPONENT-QUESTIONS==
-  //==opponent-question-const==
+  //==opponent-question-true==
   rule <mode> _DIVERGE_ </mode>
        <expr>...<id> 1 </id><k> _nil_ </k>...</expr>
        <expr>
          ...
          <id> 2 </id>
-         <k> !OPPONENT! => EX1[!abs! !C:KVar/X1] </k>
+         <k> !OPPONENT! => EX1[true/X1] </k>
          <pub> ... I |-> (fun X1 -> EX1) ... </pub>
-         <trace> TR1 => TR1 ~> ocall I (!abs! !C) </trace>
+         <trace> TR1 => TR1 ~> ocall I true </trace>
+         <step> S => S -Int 1 </step>
+         ...
+       </expr>
+       requires (S >Int 0)
+       [transition]
+  //==opponent-question-false==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>...<id> 1 </id><k> _nil_ </k>...</expr>
+       <expr>
+         ...
+         <id> 2 </id>
+         <k> !OPPONENT! => EX1[false/X1] </k>
+         <pub> ... I |-> (fun X1 -> EX1) ... </pub>
+         <trace> TR1 => TR1 ~> ocall I false </trace>
          <step> S => S -Int 1 </step>
          ...
        </expr>
@@ -804,10 +932,4 @@ module BILS
          ...
        </expr>
        [transition]
-
-  //TODO: implement termination checking mode
-  //TODO: implement checking innequivalence at proponent move
-  //TODO: remove multiplicity. Use two explicit expr cells and double the rules.
-  //TODO: more to fix....
 endmodule
-
