@@ -69,13 +69,18 @@ module BILS
             <trace> .K </trace>
             <step> 10 </step>
           </expr>
-          <explored>
-            <conf multiplicity="*">
-              <store> .Map </store>
-              <stack> .K </stack>
-              <gamma> .Map </gamma>
-            </conf>
-          </explored>
+          <R> //TODO: is explored sufficient? do you need 1 and 2?
+            <C multiplicity="*">
+              //first term
+              <s1> .Map </s1>
+              <e1> .K </e1>
+              <g1> .Map </g1>
+              //second term
+              <s2> .Map </s2>
+              <e2> .K </e2>
+              <g2> .Map </g2>
+            </C>
+          </R>
         </bisim>
       </T>
 
@@ -181,45 +186,47 @@ module BILS
          ...
          <id> 1 </id>
          <k> C:Const => !OPPONENT! </k>
-         <trace> TR1 => TR1 ~> pret C </trace>
          <state> ST1 </state>
          <eval> ES1 </eval>
          <pub> P1 </pub>
+         <trace> TR1 => TR1 ~> pret C </trace>
          ...
        </expr>
        <expr>
          ...
          <id> 2 </id>
          <k> C:Const => !OPPONENT! </k>
-         <trace> TR2 => TR2 ~> pret C </trace>
          <state> ST2 </state>
          <eval> ES2 </eval>
          <pub> P2 </pub>
+         <trace> TR2 => TR2 ~> pret C </trace>
          ...
        </expr>
-       <explored>
+       <R>
          ...
-         (.Bag =>
-           <conf>
-             <store> ST1 </store>
-             <stack> ES1</stack>
-             <gamma> P1 </gamma>
-           </conf>)
-         (.Bag =>
-           <conf>
-             <store> ST2 </store>
-             <stack> ES2</stack>
-             <gamma> P2 </gamma>
-           </conf>)
+         (.Bag
+           =>
+           <C>
+             //first term
+             <s1> ST1 </s1>
+             <e1> ES1 </e1>
+             <g1> P1 </g1>
+             //second term
+             <s2> ST2 </s2>
+             <e2> ES2 </e2>
+             <g2> P2 </g2>
+           </C>)
          ...
-       </explored>
+       </R>
   //==proponent-answer-lambda==
   rule <mode> _NORMAL_ </mode>
        <expr>
          ...
          <id> 1 </id>
          <k> fun X:KVar -> EX:Exp  => !OPPONENT! </k>
-         <pub> ... .Map => (!I:Int |-> (fun X -> EX)) ... </pub>
+         <pub> P1 => P1[!I:Int <- (fun X -> EX)] </pub>
+         <state> ST1 </state>
+         <eval> ES1 </eval>
          <trace> TR1 => TR1 ~> pret (fun X -> EX) </trace>
          ...
        </expr>
@@ -227,10 +234,28 @@ module BILS
          ...
          <id> 2 </id>
          <k> fun Y:KVar -> EY:Exp  => !OPPONENT! </k>
-         <pub> ... .Map => (!I |-> (fun Y -> EY)) ... </pub>
+         <pub> P2 => P2[!I <- (fun Y -> EY)] </pub>
+         <state> ST2 </state>
+         <eval> ES2 </eval>
          <trace> TR2 => TR2 ~> pret (fun Y -> EY) </trace>
          ...
        </expr>
+       <R>
+         ...
+         (.Bag
+           =>
+           <C>
+             //first term
+             <s1> ST1 </s1>
+             <e1> ES1 </e1>
+             <g1> P1[!I <- (fun X -> EX)] </g1>
+             //second term
+             <s2> ST2 </s2>
+             <e2> ES2 </e2>
+             <g2> P2[!I <- (fun Y -> EY)] </g2>
+           </C>)
+         ...
+       </R>
        
   //==PROPONENT-QUESTIONS==
   //==proponent-question-const==
@@ -239,6 +264,8 @@ module BILS
          ...
          <id> 1 </id>
          <k> (!abs! F) C:Const ~> E1 => !OPPONENT! </k>
+         <pub> P1 </pub>
+         <state> ST1 </state>
          <eval> ES1 => E1 ~> (!abs! F) ~> ES1 </eval>
          <trace> TR1 => TR1 ~> pcall F C </trace>
          ...
@@ -247,10 +274,28 @@ module BILS
          ...
          <id> 2 </id>
          <k> (!abs! F) C:Const ~> E2 => !OPPONENT! </k>
+         <pub> P2 </pub>
+         <state> ST2 </state>
          <eval> ES2 => E2 ~> (!abs! F) ~> ES2 </eval>
          <trace> TR2 => TR2 ~> pcall F C </trace>
          ...
        </expr>
+       <R>
+         ...
+         (.Bag
+           =>
+           <C>
+             //first term
+             <s1> ST1 </s1>
+             <e1> E1 ~> (!abs! F) ~> ES1 </e1>
+             <g1> P1 </g1>
+             //second term
+             <s2> ST2 </s2>
+             <e2> E2 ~> (!abs! F) ~> ES2 </e2>
+             <g2> P2 </g2>
+           </C>)
+         ...
+       </R>
   //==proponent-question-lambda==
   rule <mode> _NORMAL_ </mode>
        <expr>
@@ -261,7 +306,8 @@ module BILS
            =>
            !OPPONENT!
          </k>
-         <pub> ... .Map => (!I:Int |-> (fun X -> EX)) ... </pub>
+         <pub> P1 => P1[!I:Int <- (fun X -> EX)] </pub>
+         <state> ST1 </state>
          <eval> ES1 => E1 ~> (!abs! F) ~> ES1 </eval>
          <trace> TR1 => TR1 ~> pcall F (fun X -> EX) </trace>
          ...
@@ -274,12 +320,28 @@ module BILS
            =>
            !OPPONENT!
          </k>
-         <pub> ... .Map => (!I:Int |-> (fun Y -> EY)) ... </pub>
+         <pub> P2 => P2[!I <- (fun Y -> EY)] </pub>
+         <state> ST2 </state>
          <eval> ES2 => E2 ~> (!abs! F) ~> ES2 </eval>
          <trace> TR2 => TR2 ~> pcall F (fun Y -> EY) </trace>
          ...
        </expr>
-       
+       <R>
+         ...
+         (.Bag
+           =>
+           <C>
+             //first term
+             <s1> ST1 </s1>
+             <e1> E1 ~> (!abs! F) ~> ES1 </e1>
+             <g1> P1[!I:Int <- (fun X -> EX)] </g1>
+             //second term
+             <s2> ST2 </s2>
+             <e2> E2 ~> (!abs! F) ~> ES2 </e2>
+             <g2> P2[!I <- (fun Y -> EY)] </g2>
+           </C>)
+         ...
+       </R>
   //==OPPONENT-ANSWERS==
   // TODO: maybe use only Boolean constants.
   //==opponent-answer-true==
