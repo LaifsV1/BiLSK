@@ -1,0 +1,10 @@
+#bound 5
+
+let mod = (fun a -> (fun b -> a - ((a / b) * b))) in
+let even = (fun x -> (mod x 2 == 0)) in
+
+(fun g -> ref l = 0 in
+          let f = (fun x -> l := !l + 2) in
+          g f ; if even (!l) then (fun x -> ()) else _bot_)
+|||
+fun g -> g (fun x -> ()) ; (fun x -> ())
