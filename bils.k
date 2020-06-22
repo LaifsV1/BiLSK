@@ -510,17 +510,18 @@ module BILS
   // RULES TO SWITCH TO DIVERGENCE MODE:
   //==PROPONENT-ANSWERS==
   //==proponent-answer-const-neq==
+  syntax Label ::= "!UNMATCHED!" "(" Label ")"
   rule <mode> _NORMAL_ => _DIVERGE_ </mode>
        <expr>
          ...
          <k> C1:Const => !OPPONENT! </k>
-         <trace> TR1 => TR1 ~> pret C1 ~> !DIV! </trace>
+         <trace> TR1 => TR1 ~> !UNMATCHED!( pret C1 ) </trace>
          ...
        </expr>
        <expr>
          ...
          <k> C2:Const => !OPPONENT! </k>
-         <trace> TR2 => TR2 ~> pret C2 ~> !DIV! </trace>
+         <trace> TR2 => TR2 ~> !UNMATCHED!( pret C2 ) </trace>
          ...
        </expr>
        requires C1 =/=K C2
@@ -986,11 +987,13 @@ module BILS
   // ERROR MODE:
   // checks if one side can reach empty stack at oppponent
   // while the other side is at nil
+  syntax Label ::= "!TERM!"
   rule <mode> _DIVERGE_ => _ERROR_ </mode>
        <expr>
          ...
          <k> !OPPONENT! </k>
          <eval> .K </eval>
+         <trace> TR => TR ~> !TERM! </trace>
          ...
        </expr>
        [transition]
