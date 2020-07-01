@@ -70,18 +70,6 @@ module BILS
             <step> 10 </step>
             <opcall> 5 </opcall>
           </expr>
-          <R> //TODO: is explored sufficient? do you need 1 and 2?
-            <C multiplicity="*">
-              //first term
-              <s1> .Map </s1>
-              <e1> .K </e1>
-              <g1> .Map </g1>
-              //second term
-              <s2> .Map </s2>
-              <e2> .K </e2>
-              <g2> .Map </g2>
-            </C>
-          </R>
         </bisim>
       </T>
 
@@ -178,9 +166,9 @@ module BILS
   //====================
   // LTS-GAME SEMANTICS:
   syntax Prog ::= "!OPPONENT!"
-  syntax AbsVal ::= "!abs!" KVar
+  syntax AbsVal ::= "!ABS!" KVar
   syntax Const  ::= AbsVal
-  syntax AContext ::= "!MyContext!" "[" KItem "]"
+  syntax AContext ::= "!MyContext!" "[" K "]"
   //==PROPONENT-ANSWERS==
   //==proponent-answer-constant==
   rule <mode> _NORMAL_ </mode>
@@ -188,9 +176,6 @@ module BILS
          ...
          <id> 1 </id>
          <k> C:Const => !OPPONENT! </k>
-         <state> ST1 </state>
-         <eval> ES1 </eval>
-         <pub> P1 </pub>
          <trace> TR1 => TR1 ~> pret !CONST! C </trace>
          ...
        </expr>
@@ -198,28 +183,9 @@ module BILS
          ...
          <id> 2 </id>
          <k> C:Const => !OPPONENT! </k>
-         <state> ST2 </state>
-         <eval> ES2 </eval>
-         <pub> P2 </pub>
          <trace> TR2 => TR2 ~> pret !CONST! C </trace>
          ...
        </expr>
-       <R>
-         ...
-         (.Bag
-           =>
-           <C>
-             //first term
-             <s1> ST1 </s1>
-             <e1> ES1 </e1>
-             <g1> P1 </g1>
-             //second term
-             <s2> ST2 </s2>
-             <e2> ES2 </e2>
-             <g2> P2 </g2>
-           </C>)
-         ...
-       </R>
   //==proponent-answer-lambda==
   rule <mode> _NORMAL_ </mode>
        <expr>
@@ -227,8 +193,6 @@ module BILS
          <id> 1 </id>
          <k> fun X:KVar -> EX:Exp  => !OPPONENT! </k>
          <pub> P1 => P1[!I:Int <- (fun X -> EX)] </pub>
-         <state> ST1 </state>
-         <eval> ES1 </eval>
          <trace> TR1 => TR1 ~> pret !INDEX! !I </trace>
          ...
        </expr>
@@ -237,27 +201,9 @@ module BILS
          <id> 2 </id>
          <k> fun Y:KVar -> EY:Exp  => !OPPONENT! </k>
          <pub> P2 => P2[!I <- (fun Y -> EY)] </pub>
-         <state> ST2 </state>
-         <eval> ES2 </eval>
          <trace> TR2 => TR2 ~> pret !INDEX! !I </trace>
          ...
        </expr>
-       <R>
-         ...
-         (.Bag
-           =>
-           <C>
-             //first term
-             <s1> ST1 </s1>
-             <e1> ES1 </e1>
-             <g1> P1[!I <- (fun X -> EX)] </g1>
-             //second term
-             <s2> ST2 </s2>
-             <e2> ES2 </e2>
-             <g2> P2[!I <- (fun Y -> EY)] </g2>
-           </C>)
-         ...
-       </R>
        
   //==PROPONENT-QUESTIONS==
   //==proponent-question-const==
@@ -265,9 +211,7 @@ module BILS
        <expr>
          ...
          <id> 1 </id>
-         <k> (!abs! F) C:Const ~> E1 => !OPPONENT! </k>
-         <pub> P1 </pub>
-         <state> ST1 </state>
+         <k> (!ABS! F) C:Const ~> E1 => !OPPONENT! </k>
          <eval> ES1 => !MyContext! [ E1 ] ~> ES1 </eval>
          <trace> TR1 => TR1 ~> pcall F !CONST! C </trace>
          ...
@@ -275,42 +219,23 @@ module BILS
        <expr>
          ...
          <id> 2 </id>
-         <k> (!abs! F) C:Const ~> E2 => !OPPONENT! </k>
-         <pub> P2 </pub>
-         <state> ST2 </state>
+         <k> (!ABS! F) C:Const ~> E2 => !OPPONENT! </k>
          <eval> ES2 => !MyContext! [ E2 ] ~> ES2 </eval>
          <trace> TR2 => TR2 ~> pcall F !CONST! C </trace>
          ...
        </expr>
-       <R>
-         ...
-         (.Bag
-           =>
-           <C>
-             //first term
-             <s1> ST1 </s1>
-             <e1> E1 ~> (!abs! F) ~> ES1 </e1>
-             <g1> P1 </g1>
-             //second term
-             <s2> ST2 </s2>
-             <e2> E2 ~> (!abs! F) ~> ES2 </e2>
-             <g2> P2 </g2>
-           </C>)
-         ...
-       </R>
   //==proponent-question-lambda==
   rule <mode> _NORMAL_ </mode>
        <expr>
          ...
          <id> 1 </id>
          <k>
-           (!abs! F) (fun X:KVar -> EX:Exp) ~> E1
+           (!ABS! F) (fun X:KVar -> EX:Exp) ~> E1
            =>
            !OPPONENT!
          </k>
          <pub> P1 => P1[!I:Int <- (fun X -> EX)] </pub>
-         <state> ST1 </state>
-         <eval> ES1 => ((!MyContext! [ E1 ]) ~> ES1) </eval>
+         <eval> ES1 => (!MyContext! [ E1 ] ~> ES1) </eval>
          <trace> TR1 => TR1 ~> pcall F !INDEX! !I </trace>
          ...
        </expr>
@@ -318,13 +243,12 @@ module BILS
          ...
          <id> 2 </id>
          <k>
-           (!abs! F) (fun Y:KVar -> EY:Exp) ~> E2
+           (!ABS! F) (fun Y:KVar -> EY:Exp) ~> E2
            =>
            !OPPONENT!
          </k>
          <pub> P2 => P2[!I <- (fun Y -> EY)] </pub>
-         <state> ST2 </state>
-         <eval> ES2 => ((!MyContext! [ E2 ]) ~> ES2) </eval>
+         <eval> ES2 => (!MyContext! [ E2 ] ~> ES2) </eval>
          <trace> TR2 => TR2 ~> pcall F !INDEX! !I </trace>
          ...
        </expr>
@@ -336,7 +260,7 @@ module BILS
          ...
          <id> 1 </id>
          <k> !OPPONENT! => true ~> E1 </k>
-         <eval> !MyContext! [ E1:KItem ] ~> ES1 => ES1 </eval>
+         <eval> !MyContext! [ E1 ] ~> ES1 => ES1 </eval>
          <trace> TR1 => TR1 ~> oret true </trace>
          <step> S </step>
          ...
@@ -345,7 +269,7 @@ module BILS
          ...
          <id> 2 </id>
          <k> !OPPONENT! => true ~> E2 </k>
-         <eval> !MyContext! [ E2:KItem ] ~> ES2 => ES2 </eval>
+         <eval> !MyContext! [ E2 ] ~> ES2 => ES2 </eval>
          <trace> TR2 => TR2 ~> oret true </trace>
          <step> S </step>
          ...
@@ -358,7 +282,7 @@ module BILS
          ...
          <id> 1 </id>
          <k> !OPPONENT! => false ~> E1 </k>
-         <eval> !MyContext! [ E1:KItem ] ~> ES1 => ES1 </eval>
+         <eval> !MyContext! [ E1 ] ~> ES1 => ES1 </eval>
          <trace> TR1 => TR1 ~> oret false </trace>
          <step> S </step>
          ...
@@ -367,7 +291,7 @@ module BILS
          ...
          <id> 2 </id>
          <k> !OPPONENT! => false ~> E2 </k>
-         <eval> !MyContext! [ E2:KItem ] ~> ES2 => ES2 </eval>
+         <eval> !MyContext! [ E2 ] ~> ES2 => ES2 </eval>
          <trace> TR2 => TR2 ~> oret false </trace>
          <step> S </step>
          ...
@@ -382,10 +306,10 @@ module BILS
          <k>
            !OPPONENT!
            =>
-           (fun !X:KVar -> (!abs! !Y:KVar) !X) ~> E1
+           (fun !X:KVar -> (!ABS! !Y:KVar) !X) ~> E1
          </k>
-         <eval> !MyContext! [ E1:KItem ] ~> ES1 => ES1 </eval>
-         <trace> TR1 => TR1 ~> oret (!abs! !Y) </trace>
+         <eval> !MyContext! [ E1 ] ~> ES1 => ES1 </eval>
+         <trace> TR1 => TR1 ~> oret (!ABS! !Y) </trace>
          <step> S </step>
          ...
        </expr>
@@ -395,10 +319,10 @@ module BILS
          <k>
            !OPPONENT!
            =>
-           (fun !X -> (!abs! !Y) !X) ~> E2
+           (fun !X -> (!ABS! !Y) !X) ~> E2
          </k>
-         <eval> !MyContext! [ E2:KItem ] ~> ES2 => ES2 </eval>
-         <trace> TR2 => TR2 ~> oret (!abs! !Y) </trace>
+         <eval> !MyContext! [ E2 ] ~> ES2 => ES2 </eval>
+         <trace> TR2 => TR2 ~> oret (!ABS! !Y) </trace>
          <step> S </step>
          ...
        </expr>
@@ -461,11 +385,11 @@ module BILS
          <k>
            !OPPONENT!
            =>
-           EX1[(fun !Y:KVar -> (!abs! !F:KVar) !Y)/X1]
+           EX1[(fun !Y:KVar -> (!ABS! !F:KVar) !Y)/X1]
          </k>
          <pub> ... I |-> (fun X1 -> EX1) ... </pub>
          <trace>
-           TR1 => TR1 ~> ocall !INDEX! I (!abs! !F) </trace>
+           TR1 => TR1 ~> ocall !INDEX! I (!ABS! !F) </trace>
          <step> S => S -Int 1 </step>
          <opcall> OSTEP => OSTEP -Int 1 </opcall>
          ...
@@ -476,11 +400,11 @@ module BILS
          <k>
            !OPPONENT!
            =>
-           EX2[(fun !Y -> (!abs! !F) !Y)/X2]
+           EX2[(fun !Y -> (!ABS! !F) !Y)/X2]
          </k>
          <pub> ... I |-> (fun X2 -> EX2) ... </pub>
          <trace>
-           TR2 => TR2 ~> ocall !INDEX! I (!abs! !F) </trace>
+           TR2 => TR2 ~> ocall !INDEX! I (!ABS! !F) </trace>
          <step> S => S -Int 1 </step>
          <opcall> OSTEP => OSTEP -Int 1 </opcall>
          ...
@@ -539,7 +463,7 @@ module BILS
        <expr>
          ...
          <id> 1 </id>
-         <k> (!abs! X) C1:Const ~> E1 => !OPPONENT! </k>
+         <k> (!ABS! X) C1:Const ~> E1 => !OPPONENT! </k>
          <eval> ES1 => (!MyContext! [ E1 ] ~> ES1) </eval>
          <trace> TR1 => TR1 ~> pcall X !CONST! C1  </trace>
          ...
@@ -547,7 +471,7 @@ module BILS
        <expr>
          ...
          <id> 2 </id>
-         <k> (!abs! Y) C2:Const ~> E2 => !OPPONENT! </k>
+         <k> (!ABS! Y) C2:Const ~> E2 => !OPPONENT! </k>
          <eval> ES2 => (!MyContext! [ E2 ] ~> ES2) </eval>
          <trace> TR2 => TR2 ~> pcall Y !CONST! C2  </trace>
          ...
@@ -559,7 +483,7 @@ module BILS
          ...
          <id> 1 </id>
          <k>
-           (!abs! F1) (fun X:KVar -> EX:Exp) ~> E1
+           (!ABS! F1) (fun X:KVar -> EX:Exp) ~> E1
            =>
            !OPPONENT!
          </k>
@@ -572,7 +496,7 @@ module BILS
          ...
          <id> 2 </id>
          <k>
-           (!abs! F2) (fun Y:KVar -> EY:Exp) ~> E2
+           (!ABS! F2) (fun Y:KVar -> EY:Exp) ~> E2
            =>
            !OPPONENT!
          </k>
@@ -586,7 +510,7 @@ module BILS
   rule <mode> _NORMAL_ => _DIVITERIM_ </mode>
        <expr>
          ...
-         <k> (!abs! F1) C1:Const ~> E1 => !OPPONENT! </k>
+         <k> (!ABS! F1) C1:Const ~> E1 => !OPPONENT! </k>
          <eval> ES1 => !MyContext! [ E1 ] ~> ES1 </eval>
          <trace> TR1 => TR1 ~> pcall F1 !CONST! C1  </trace>
          ...
@@ -594,7 +518,7 @@ module BILS
        <expr>
          ...
          <k>
-           (!abs! F2) (fun Y:KVar -> EY:Exp) ~> E2
+           (!ABS! F2) (fun Y:KVar -> EY:Exp) ~> E2
            =>
            !OPPONENT!
          </k>
@@ -618,7 +542,7 @@ module BILS
        </expr>
        <expr>
          ...
-         <k> (!abs! F) C:Const ~> E2 => !OPPONENT! </k>
+         <k> (!ABS! F) C:Const ~> E2 => !OPPONENT! </k>
          <eval> ES2 => !MyContext! [ E2 ] ~> ES2 </eval>
          <trace> TR2 => TR2 ~> pcall F !CONST! C  </trace>
          ...
@@ -634,7 +558,7 @@ module BILS
        </expr>
        <expr>
          ...
-         <k> (!abs! F) C:Const ~> E2 => !OPPONENT! </k>
+         <k> (!ABS! F) C:Const ~> E2 => !OPPONENT! </k>
          <eval> ES2 => !MyContext! [ E2 ] ~> ES2 </eval>
          <trace> TR2 => TR2 ~> pcall F !CONST! C  </trace>
          ...
@@ -650,7 +574,7 @@ module BILS
        <expr>
          ...
          <k>
-           (!abs! F) (fun Y:KVar -> EY:Exp) ~> E2
+           (!ABS! F) (fun Y:KVar -> EY:Exp) ~> E2
            =>
            !OPPONENT!
          </k>
@@ -671,7 +595,7 @@ module BILS
        <expr>
          ...
          <k>
-           (!abs! F) (fun Y:KVar -> EY:Exp) ~> E2
+           (!ABS! F) (fun Y:KVar -> EY:Exp) ~> E2
            =>
            !OPPONENT!
          </k>
@@ -744,7 +668,7 @@ module BILS
   rule <mode> _DIVERGE_ </mode>
        <expr>
          ...
-         <k> (!abs! F) C:Const ~> E1 => !OPPONENT! </k>
+         <k> (!ABS! F) C:Const ~> E1 => !OPPONENT! </k>
          <eval> ES1 => !MyContext! [ E1 ] ~> ES1 </eval>
          <trace> TR1 => TR1 ~> pcall F !CONST! C </trace>
          ...
@@ -759,7 +683,7 @@ module BILS
        <expr>
          ...
          <k>
-           (!abs! F) (fun X:KVar -> EX:Exp) ~> E1
+           (!ABS! F) (fun X:KVar -> EX:Exp) ~> E1
            =>
            !OPPONENT!
          </k>
@@ -779,7 +703,7 @@ module BILS
        <expr>
          ...
          <k> !OPPONENT! => true ~> E1 </k>
-         <eval> !MyContext! [ E1:KItem ] ~> ES1 => ES1 </eval>
+         <eval> !MyContext! [ E1 ] ~> ES1 => ES1 </eval>
          <trace> TR1 => TR1 ~> oret true </trace>
          <step> S </step>
          ...
@@ -796,7 +720,7 @@ module BILS
        <expr>
          ...
          <k> !OPPONENT! => false ~> E1 </k>
-         <eval> !MyContext! [ E1:KItem ] ~> ES1 => ES1 </eval>
+         <eval> !MyContext! [ E1 ] ~> ES1 => ES1 </eval>
          <trace> TR1 => TR1 ~> oret false </trace>
          <step> S </step>
          ...
@@ -815,16 +739,16 @@ module BILS
          <k>
            !OPPONENT!
            =>
-           (fun !X:KVar -> (!abs! !Y:KVar) !X) ~> E1
+           (fun !X:KVar -> (!ABS! !Y:KVar) !X) ~> E1
          </k>
-         <eval> !MyContext! [ E1:KItem ] ~> ES1 => ES1 </eval>
-         <trace> TR1 => TR1 ~> oret (!abs! !Y) </trace>
+         <eval> !MyContext! [ E1 ] ~> ES1 => ES1 </eval>
+         <trace> TR1 => TR1 ~> oret (!ABS! !Y) </trace>
          <step> S </step>
          ...
        </expr>
        <expr>
          ...
-         <trace> TR2 => TR2 ~> !DUMMY!( oret (!abs! !Y) ) </trace>
+         <trace> TR2 => TR2 ~> !DUMMY!( oret (!ABS! !Y) ) </trace>
          ...
        </expr>
        requires (S >Int 0)
@@ -871,17 +795,17 @@ module BILS
          <k>
            !OPPONENT!
            =>
-           EX1[(fun !Y:KVar -> (!abs! !F:KVar) !Y)/X1]
+           EX1[(fun !Y:KVar -> (!ABS! !F:KVar) !Y)/X1]
          </k>
          <pub> ... I |-> (fun X1 -> EX1) ... </pub>
          <trace>
-           TR1 => TR1 ~> ocall !INDEX! I (!abs! !F) </trace>
+           TR1 => TR1 ~> ocall !INDEX! I (!ABS! !F) </trace>
          <step> S => S -Int 1 </step>
          ...
        </expr>
        <expr>
          ...
-         <trace> TR2 => TR2 ~> !DUMMY!( ocall !INDEX! I (!abs! !F) ) </trace>
+         <trace> TR2 => TR2 ~> !DUMMY!( ocall !INDEX! I (!ABS! !F) ) </trace>
          ...
        </expr>
        requires (S >Int 0)

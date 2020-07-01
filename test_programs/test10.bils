@@ -1,4 +1,0 @@
-#bound 2
-(fun x -> x)
-||
-(fun x -> x)

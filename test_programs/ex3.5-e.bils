@@ -1,0 +1,7 @@
+#bound 4
+
+let v2 = (fun x -> true) in v2
+|||
+ref flag = true in
+let v2 = (fun x -> if !flag then (flag := false; true) else false) in
+v2

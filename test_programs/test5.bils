@@ -1,3 +1,0 @@
-if ((1 + 6 + 4) == 11) and (true or false) then 5 else 1
-||
-(fun f -> fun x -> f x) (fun x -> x + 5) 10

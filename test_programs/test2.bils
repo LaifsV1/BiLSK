@@ -1,3 +1,5 @@
-1 + 4
-||
-1 + 6 + 4
+#bound 2
+ref l = 0 in
+true
+|||
+true

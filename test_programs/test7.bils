@@ -1,5 +1,0 @@
-#bound 500
-(fun y -> let x = 11 in ref l = x in !l + y) 55
-||
-let y = ref l = 4 in l := (!l) + 6 ; !l
-in y + y

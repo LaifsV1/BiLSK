@@ -1,10 +1,10 @@
-#bound 3
+#bound 4
 
 ref l1 = false in
 ref l2 = false in
 (
 fun f -> f (fun x -> if !l1 then _bot_ else l2 := true) ;
-         if !l2 then true else l1 := true
+         if !l2 then true else l1 := true ; true
 )
 |||
 (fun f -> f (fun x -> _bot_) ; true)
