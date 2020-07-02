@@ -1,4 +1,4 @@
-#bound 8
+#p-bound 3
 
 let even = (fun x -> ((x - ((x / 2) * 2)) == 0)) in
 

@@ -31,11 +31,12 @@ module BILS-SYNTAX
                | "ref" KVar "=" Exp "in" Exp      [binder, strict(2)]
                | "(" Exp ")"                      [bracket]
   syntax Prog ::= Exp "|||" Exp
-                | "#bound" Int Exp "|||" Exp 
+                | "#p-bound" Int Prog
+                | "#o-bound" Int Prog
   syntax Val ::= Const | "fun" KVar "->" Exp [binder,fun]
   syntax Const ::= Int | Bool | "()"
   syntax EVal ::= Bot | Nil
-  syntax Bot ::= "_bot_" // bottom is just fail
+  syntax Bot ::= "_bot_"
   syntax Nil ::= "_nil_"
   syntax priorities seq > fun
 endmodule
@@ -79,20 +80,34 @@ module BILS
   rule <expr>
          ...
          <id> _ => 1 </id>
-         <k> #bound I:Int E1 ||| E2 => E1 </k>
+         <k> #p-bound I:Int PROG => PROG </k>
          <step> _ => I </step>
+         ...
+       </expr>
+  rule <expr>
+         ...
+         <id> _ => 1 </id>
+         <k> #o-bound I:Int PROG => PROG </k>
+         <opcall> _ => I </opcall>
+         ...
+       </expr>
+  //==bound-not-specified==
+  rule <expr>
+         ...
+         <id> _ => 1 </id>
+         <k> E1 ||| E2 => E1 </k>
+         <step> PBOUND </step>
+         <opcall> OBOUND </opcall>
          ...
        </expr>
        (.Bag => <expr>
                   ...
                   <id> 2 </id>
                   <k> E2 </k>
-                  <step> I </step>
+                  <step> PBOUND </step>
+                  <opcall> OBOUND </opcall>
                   ...
                 </expr>)
-  //==bound-not-specified==
-  rule <expr>...<id> _ => 1 </id><k> E1 ||| E2 => E1 </k>...</expr>
-       (.Bag => <expr>...<id> 2 </id><k> E2 </k>...</expr>)
 
   //================================
   // CONCRETE OPERATIONAL SEMANTICS:
@@ -254,6 +269,28 @@ module BILS
        </expr>
   //==OPPONENT-ANSWERS==
   // TODO: maybe use only Boolean constants.
+  //==opponent-answer-int==
+  rule <mode> _NORMAL_ </mode>
+       <expr>
+         ...
+         <id> 1 </id>
+         <k> !OPPONENT! => I:Int ~> E1 </k>
+         <eval> !MyContext! [ E1 ] ~> ES1 => ES1 </eval>
+         <trace> TR1 => TR1 ~> oret I </trace>
+         <step> S </step>
+         ...
+       </expr>
+       <expr>
+         ...
+         <id> 2 </id>
+         <k> !OPPONENT! => I ~> E2 </k>
+         <eval> !MyContext! [ E2 ] ~> ES2 => ES2 </eval>
+         <trace> TR2 => TR2 ~> oret I </trace>
+         <step> S </step>
+         ...
+       </expr>
+       requires S >Int 0
+       [transition,unboundVariables(I)]
   //==opponent-answer-true==
   rule <mode> _NORMAL_ </mode>
        <expr>
@@ -329,6 +366,30 @@ module BILS
        requires S >Int 0
        [transition]
   //==OPPONENT-QUESTIONS==
+  //==opponent-question-int==
+  rule <mode> _NORMAL_ </mode>
+       <expr>
+         ...
+         <id> 1 </id>
+         <k> !OPPONENT! => EX1[J:Int/X1] </k>
+         <pub> ... I |-> (fun X1 -> EX1) ... </pub>
+         <trace> TR1 => TR1 ~> ocall !INDEX! I J </trace>
+         <step> S => S -Int 1 </step>
+         <opcall> OSTEP => OSTEP -Int 1 </opcall>
+         ...
+       </expr>
+       <expr>
+         ...
+         <id> 2 </id>
+         <k> !OPPONENT! => EX2[J/X2] </k>
+         <pub> ... I |-> (fun X2 -> EX2) ... </pub>
+         <trace> TR2 => TR2 ~> ocall !INDEX! I J </trace>
+         <step> S => S -Int 1 </step>
+         <opcall> OSTEP => OSTEP -Int 1 </opcall>
+         ...
+       </expr>
+       requires S >Int 0 andBool OSTEP >Int 0
+       [transition,unboundVariables(J)]
   //==opponent-question-true==
   rule <mode> _NORMAL_ </mode>
        <expr>
@@ -418,9 +479,10 @@ module BILS
          ...
          <k> !OPPONENT! => _nil_ </k>
          <step> S </step>
+         <opcall> OSTEP  </opcall>
          ...
        </expr>
-       requires S <=Int 0
+       requires S <=Int 0 orBool OSTEP <=Int 0
 
   //====================================
   // RULES TO SWITCH TO DIVERGENCE MODE:
@@ -698,6 +760,24 @@ module BILS
          ...
        </expr>
   //==DIVERGE-OPPONENT-ANSWERS==
+  //==opponent-answer-int==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>
+         ...
+         <k> !OPPONENT! => J:Int ~> E1 </k>
+         <eval> !MyContext! [ E1 ] ~> ES1 => ES1 </eval>
+         <trace> TR1 => TR1 ~> oret J </trace>
+         <step> S </step>
+         ...
+       </expr>
+       <expr>
+         ...
+         <trace> TR2 => TR2 ~> !DUMMY!( oret J ) </trace>
+         ...
+       </expr>
+       requires S >Int 0
+       [transition,unboundVariables(J)]
+
   //==opponent-answer-true==
   rule <mode> _DIVERGE_ </mode>
        <expr>
@@ -754,6 +834,25 @@ module BILS
        requires (S >Int 0)
        [transition]
   //==DIVERGE-OPPONENT-QUESTIONS==
+  //==opponent-question-int==
+  rule <mode> _DIVERGE_ </mode>
+       <expr>
+         ...
+         <k> !OPPONENT! => EX1[J:Int/X1] </k>
+         <pub> ... I |-> (fun X1 -> EX1) ... </pub>
+         <trace> TR1 => TR1 ~> ocall !INDEX! I J </trace>
+         <step> S => S -Int 1 </step>
+         <opcall> OSTEP => OSTEP -Int 1 </opcall>
+         ...
+       </expr>
+       <expr>
+         ...
+         <trace> TR2 => TR2 ~> !DUMMY!( ocall !INDEX! I J ) </trace>
+         ...
+       </expr>
+       requires (S >Int 0) andBool OSTEP >Int 0
+       [transition,unboundVariables(J)]
+
   //==opponent-question-true==
   rule <mode> _DIVERGE_ </mode>
        <expr>
@@ -762,6 +861,7 @@ module BILS
          <pub> ... I |-> (fun X1 -> EX1) ... </pub>
          <trace> TR1 => TR1 ~> ocall !INDEX! I true </trace>
          <step> S => S -Int 1 </step>
+         <opcall> OSTEP => OSTEP -Int 1 </opcall>
          ...
        </expr>
        <expr>
@@ -769,7 +869,7 @@ module BILS
          <trace> TR2 => TR2 ~> !DUMMY!( ocall !INDEX! I true ) </trace>
          ...
        </expr>
-       requires (S >Int 0)
+       requires (S >Int 0) andBool OSTEP >Int 0
        [transition]
   //==opponent-question-false==
   rule <mode> _DIVERGE_ </mode>
@@ -779,6 +879,7 @@ module BILS
          <pub> ... I |-> (fun X1 -> EX1) ... </pub>
          <trace> TR1 => TR1 ~> ocall !INDEX! I false </trace>
          <step> S => S -Int 1 </step>
+         <opcall> OSTEP => OSTEP -Int 1 </opcall>
          ...
        </expr>
        <expr>
@@ -786,7 +887,7 @@ module BILS
          <trace> TR2 => TR2 ~> !DUMMY!( ocall !INDEX! I false ) </trace>
          ...
        </expr>
-       requires (S >Int 0)
+       requires (S >Int 0) andBool OSTEP >Int 0
        [transition]
   //==opponent-question-lambda==
   rule <mode> _DIVERGE_ </mode>
@@ -801,6 +902,7 @@ module BILS
          <trace>
            TR1 => TR1 ~> ocall !INDEX! I (!ABS! !F) </trace>
          <step> S => S -Int 1 </step>
+         <opcall> OSTEP => OSTEP -Int 1 </opcall>
          ...
        </expr>
        <expr>
@@ -808,7 +910,7 @@ module BILS
          <trace> TR2 => TR2 ~> !DUMMY!( ocall !INDEX! I (!ABS! !F) ) </trace>
          ...
        </expr>
-       requires (S >Int 0)
+       requires (S >Int 0) andBool OSTEP >Int 0
        [transition]
 
   //============
