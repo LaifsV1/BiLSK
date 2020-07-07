@@ -1,4 +1,4 @@
-#p-bound 2
+#call-bound 2
 
 (fun f -> f 6 ; (ref l2 = 2 in f (!l2)))
 |||

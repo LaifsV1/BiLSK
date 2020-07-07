@@ -1,4 +1,4 @@
-#p-bound 4
+#call-bound 4
 
 let v2 = (fun x -> true) in v2
 |||

@@ -1,5 +1,5 @@
-#p-bound 3
-#o-bound 3
+#call-bound 3
+#context-bound 3
 
 fun x -> if x > 0 then
          if x < 0 then true

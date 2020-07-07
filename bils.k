@@ -4,10 +4,6 @@ module BILS-SYNTAX
   imports DOMAINS-SYNTAX
   imports SUBSTITUTION
 
-  // TODO:
-  // - unexplainable bug with associativity of sequencing
-  //   i.e. fun f -> f 6 ; ( ref l2 = 2 in f ! l2 )
-  //   why does ; need brackets on the second term?
   syntax Exp ::= KVar | Val | EVal
                | "!" KVar
                > Exp Exp                          [seqstrict(1,2), left]
@@ -31,8 +27,8 @@ module BILS-SYNTAX
                | "ref" KVar "=" Exp "in" Exp      [binder, strict(2)]
                | "(" Exp ")"                      [bracket]
   syntax Prog ::= Exp "|||" Exp
-                | "#p-bound" Int Prog
-                | "#o-bound" Int Prog
+                | "#call-bound" Int Prog
+                | "#context-bound" Int Prog
   syntax Val ::= Const | "fun" KVar "->" Exp [binder,fun]
   syntax Const ::= Int | Bool | "()"
   syntax EVal ::= Bot | Nil
@@ -80,14 +76,14 @@ module BILS
   rule <expr>
          ...
          <id> _ => 1 </id>
-         <k> #p-bound I:Int PROG => PROG </k>
+         <k> #call-bound I:Int PROG => PROG </k>
          <step> _ => I </step>
          ...
        </expr>
   rule <expr>
          ...
          <id> _ => 1 </id>
-         <k> #o-bound I:Int PROG => PROG </k>
+         <k> #context-bound I:Int PROG => PROG </k>
          <opcall> _ => I </opcall>
          ...
        </expr>
@@ -111,8 +107,6 @@ module BILS
 
   //================================
   // CONCRETE OPERATIONAL SEMANTICS:
-  //TODO: check bounds!!!
-  //TODO: add type annotation to lambda
   //==divergence==
   rule EV:EVal ~> K:KItem => EV
   //==arithmetic==
@@ -268,7 +262,6 @@ module BILS
          ...
        </expr>
   //==OPPONENT-ANSWERS==
-  // TODO: maybe use only Boolean constants.
   //==opponent-answer-int==
   rule <mode> _NORMAL_ </mode>
        <expr>
@@ -291,50 +284,28 @@ module BILS
        </expr>
        requires S >Int 0
        [transition,unboundVariables(I)]
-  //==opponent-answer-true==
+  //==opponent-answer-bool==
   rule <mode> _NORMAL_ </mode>
        <expr>
          ...
          <id> 1 </id>
-         <k> !OPPONENT! => true ~> E1 </k>
+         <k> !OPPONENT! => B:Bool ~> E1 </k>
          <eval> !MyContext! [ E1 ] ~> ES1 => ES1 </eval>
-         <trace> TR1 => TR1 ~> oret true </trace>
+         <trace> TR1 => TR1 ~> oret B </trace>
          <step> S </step>
          ...
        </expr>
        <expr>
          ...
          <id> 2 </id>
-         <k> !OPPONENT! => true ~> E2 </k>
+         <k> !OPPONENT! => B ~> E2 </k>
          <eval> !MyContext! [ E2 ] ~> ES2 => ES2 </eval>
-         <trace> TR2 => TR2 ~> oret true </trace>
+         <trace> TR2 => TR2 ~> oret B </trace>
          <step> S </step>
          ...
        </expr>
        requires S >Int 0
-       [transition]
-  //==opponent-answer-false==
-  rule <mode> _NORMAL_ </mode>
-       <expr>
-         ...
-         <id> 1 </id>
-         <k> !OPPONENT! => false ~> E1 </k>
-         <eval> !MyContext! [ E1 ] ~> ES1 => ES1 </eval>
-         <trace> TR1 => TR1 ~> oret false </trace>
-         <step> S </step>
-         ...
-       </expr>
-       <expr>
-         ...
-         <id> 2 </id>
-         <k> !OPPONENT! => false ~> E2 </k>
-         <eval> !MyContext! [ E2 ] ~> ES2 => ES2 </eval>
-         <trace> TR2 => TR2 ~> oret false </trace>
-         <step> S </step>
-         ...
-       </expr>
-       requires S >Int 0
-       [transition]
+       [transition,unboundVariables(B)]
   //==opponent-answer-lambda==
   rule <mode> _NORMAL_ </mode>
        <expr>
@@ -390,14 +361,14 @@ module BILS
        </expr>
        requires S >Int 0 andBool OSTEP >Int 0
        [transition,unboundVariables(J)]
-  //==opponent-question-true==
+  //==opponent-question-bool==
   rule <mode> _NORMAL_ </mode>
        <expr>
          ...
          <id> 1 </id>
-         <k> !OPPONENT! => EX1[true/X1] </k>
+         <k> !OPPONENT! => EX1[B:Bool/X1] </k>
          <pub> ... I |-> (fun X1 -> EX1) ... </pub>
-         <trace> TR1 => TR1 ~> ocall !INDEX! I true </trace>
+         <trace> TR1 => TR1 ~> ocall !INDEX! I B </trace>
          <step> S => S -Int 1 </step>
          <opcall> OSTEP => OSTEP -Int 1 </opcall>
          ...
@@ -405,39 +376,15 @@ module BILS
        <expr>
          ...
          <id> 2 </id>
-         <k> !OPPONENT! => EX2[true/X2] </k>
+         <k> !OPPONENT! => EX2[B/X2] </k>
          <pub> ... I |-> (fun X2 -> EX2) ... </pub>
-         <trace> TR2 => TR2 ~> ocall !INDEX! I true </trace>
+         <trace> TR2 => TR2 ~> ocall !INDEX! I B </trace>
          <step> S => S -Int 1 </step>
          <opcall> OSTEP => OSTEP -Int 1 </opcall>
          ...
        </expr>
        requires S >Int 0 andBool OSTEP >Int 0
-       [transition]
-  //==opponent-question-false==
-  rule <mode> _NORMAL_ </mode>
-       <expr>
-         ...
-         <id> 1 </id>
-         <k> !OPPONENT! => EX1[false/X1] </k>
-         <pub> ... I |-> (fun X1 -> EX1) ... </pub>
-         <trace> TR1 => TR1 ~> ocall !INDEX! I false </trace>
-         <step> S => S -Int 1 </step>
-         <opcall> OSTEP => OSTEP -Int 1 </opcall>
-         ...
-       </expr>
-       <expr>
-         ...
-         <id> 2 </id>
-         <k> !OPPONENT! => EX2[false/X2] </k>
-         <pub> ... I |-> (fun X2 -> EX2) ... </pub>
-         <trace> TR2 => TR2 ~> ocall !INDEX! I false </trace>
-         <step> S => S -Int 1 </step>
-         <opcall> OSTEP => OSTEP -Int 1 </opcall>
-         ...
-       </expr>
-       requires S >Int 0 andBool OSTEP >Int 0
-       [transition]
+       [transition,unboundVariables(B)]
   //==opponent-question-lambda==
   rule <mode> _NORMAL_ </mode>
        <expr>
@@ -777,24 +724,23 @@ module BILS
        </expr>
        requires S >Int 0
        [transition,unboundVariables(J)]
-
-  //==opponent-answer-true==
+  //==opponent-answer-bool==
   rule <mode> _DIVERGE_ </mode>
        <expr>
          ...
-         <k> !OPPONENT! => true ~> E1 </k>
+         <k> !OPPONENT! => B:Bool ~> E1 </k>
          <eval> !MyContext! [ E1 ] ~> ES1 => ES1 </eval>
-         <trace> TR1 => TR1 ~> oret true </trace>
+         <trace> TR1 => TR1 ~> oret B </trace>
          <step> S </step>
          ...
        </expr>
        <expr>
          ...
-         <trace> TR2 => TR2 ~> !DUMMY!( oret true ) </trace>
+         <trace> TR2 => TR2 ~> !DUMMY!( oret B ) </trace>
          ...
        </expr>
        requires (S >Int 0)
-       [transition]
+       [transition,unboundVariables(B)]
   //==opponent-answer-false==
   rule <mode> _DIVERGE_ </mode>
        <expr>
@@ -852,43 +798,24 @@ module BILS
        </expr>
        requires (S >Int 0) andBool OSTEP >Int 0
        [transition,unboundVariables(J)]
-
-  //==opponent-question-true==
+  //==opponent-question-bool==
   rule <mode> _DIVERGE_ </mode>
        <expr>
          ...
-         <k> !OPPONENT! => EX1[true/X1] </k>
+         <k> !OPPONENT! => EX1[B:Bool/X1] </k>
          <pub> ... I |-> (fun X1 -> EX1) ... </pub>
-         <trace> TR1 => TR1 ~> ocall !INDEX! I true </trace>
+         <trace> TR1 => TR1 ~> ocall !INDEX! I B </trace>
          <step> S => S -Int 1 </step>
          <opcall> OSTEP => OSTEP -Int 1 </opcall>
          ...
        </expr>
        <expr>
          ...
-         <trace> TR2 => TR2 ~> !DUMMY!( ocall !INDEX! I true ) </trace>
+         <trace> TR2 => TR2 ~> !DUMMY!( ocall !INDEX! I B ) </trace>
          ...
        </expr>
        requires (S >Int 0) andBool OSTEP >Int 0
-       [transition]
-  //==opponent-question-false==
-  rule <mode> _DIVERGE_ </mode>
-       <expr>
-         ...
-         <k> !OPPONENT! => EX1[false/X1] </k>
-         <pub> ... I |-> (fun X1 -> EX1) ... </pub>
-         <trace> TR1 => TR1 ~> ocall !INDEX! I false </trace>
-         <step> S => S -Int 1 </step>
-         <opcall> OSTEP => OSTEP -Int 1 </opcall>
-         ...
-       </expr>
-       <expr>
-         ...
-         <trace> TR2 => TR2 ~> !DUMMY!( ocall !INDEX! I false ) </trace>
-         ...
-       </expr>
-       requires (S >Int 0) andBool OSTEP >Int 0
-       [transition]
+       [transition,unboundVariables(B)]
   //==opponent-question-lambda==
   rule <mode> _DIVERGE_ </mode>
        <expr>

@@ -1,4 +1,4 @@
-#p-bound 3
+#call-bound 3
 
 ref l1 = false in
 ref l2 = false in
